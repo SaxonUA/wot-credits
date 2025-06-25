@@ -2,180 +2,112 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <title>Лічильник кредитів</title>
-  <script src="https://unpkg.com/wotstat-widgets-sdk"></script>
+  <title>Кредити</title>
   <style>
-    :root {
-      --wotstat-primary: #ffc107;
-      --wotstat-accent: rgba(255, 193, 7, 0.2);
-    }
-
-    * {
+    body {
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
-      background: transparent !important;
+      background: transparent;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    @font-face {
-      font-family: 'Warhelios';
-      src: url('https://widgets.wotstat.info/assets/Warhelios-Regular-d5nrEqK6.woff2') format('woff2');
-      font-weight: normal;
-      font-style: normal;
-    }
-
-    body {
-      font-family: "Warhelios", sans-serif;
-      background: transparent !important;
-      font-weight: bold;
-      color: white;
+    .credit-container {
+      background: #1a1a1a;
+      color: #ffa500;
+      padding: 20px 30px;
+      border-radius: 20px;
+      border: 3px solid #ffa500;
+      box-shadow: 0 0 20px rgba(255, 165, 0, 0.6);
+      width: fit-content;
+      min-width: 260px;
       text-align: center;
-      padding: 20px;
-      margin: 0.01em 0;
-      display: flex;
-      min-height: 100vh;
     }
 
-    .card {
-      background: transparent !important;
-      border: 1px solid var(--wotstat-primary);
-      border-radius: 2em;
-      padding: 15px;
-      margin: auto;
-      width: 300px;
-      height: fit-content;
-      box-shadow: 0 4px 12px var(--wotstat-accent);
+    .top-info {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #ffcc80;
+    }
+
+    .credit-header {
+      font-size: 18px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #ffffff;
+      margin-bottom: 10px;
       position: relative;
     }
 
-    h1 {
-      color: var(--wotstat-primary);
-      margin: 0.1em 0;
-      font-size: 1.8em;
-      text-transform: uppercase;
-    }
-
-    p {
-      color: var(--wotstat-primary);
-      font-size: 2.0em;
-      margin: 0.2em 0;
-    }
-
-    #victories-battles {
+    .battle-count {
       position: absolute;
-      top: 10px;
-      right: 30px;
-      color: var(--wotstat-primary);
-      font-size: 1.4em;
+      top: 0;
+      right: 0;
+      font-size: 12px;
+      color: #aaa;
     }
 
-    #credits {
-      display: inline-block;
-      min-width: 100px;
+    .credit-value {
+      font-size: 34px;
+      font-weight: 800;
+      color: #ff4444;
+      text-shadow: 1px 1px 3px black;
+      margin-bottom: 16px;
     }
 
-    @keyframes numberChange {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.1); }
-      100% { transform: scale(1); }
+    .stat-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 18px;
+      font-weight: 600;
+      color: #ffcc80;
+      margin: 4px 0;
     }
 
-    .number-update {
-      animation: numberChange 0.3s ease-in-out;
+    .stat-line .label {
+      text-align: left;
+    }
+
+    .stat-line .value {
+      text-align: right;
+      color: #ffa500;
+      font-weight: bold;
     }
   </style>
 </head>
-
 <body>
-  <div class="card">
-    <h1>КРЕДИТИ</h1>
-    <p><span id="credits">0</span></p>
-    <p id="victories-battles">0/0</p>
+  <div class="credit-container">
+    <div class="top-info" id="summary">Завантаження...</div>
+    <div class="credit-header">
+      Кредити
+      <span class="battle-count" id="battleNum">—</span>
+    </div>
+    <div class="credit-value" id="creditValue">—</div>
+    <div class="stat-line">
+      <span class="label">Останній бій</span>
+      <span class="value" id="lastBattle">—</span>
+    </div>
   </div>
 
-  <script type="module">
-    const { WidgetSDK } = WotstatWidgetsSdk;
-    const sdk = new WidgetSDK();
+  <script>
+    async function fetchData() {
+      try {
+        const response = await fetch("https://script.google.com/macros/s/AKfycbzLgDw8bDdVeuQq9BPGsgjm7YjU0CINxLt0gTXz1dF3ANuZnhWs8SJuJ9XEZ8p1AAuV/exec");
+        const data = await response.json();
 
-    let totalCredits = 0;
-    let battles = 0;
-    let victories = 0;
-
-    function formatCredits(credits) {
-      if (credits >= 10000) {
-        return (credits / 1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + 'k';
+        document.getElementById("creditValue").textContent = data.credits.toLocaleString("uk-UA");
+        document.getElementById("battleNum").textContent = data.battleNum;
+        document.getElementById("lastBattle").textContent = data.lastBattle.toLocaleString("uk-UA");
+        document.getElementById("summary").textContent = `Бої — ${data.totalBattles} | Перемоги — ${data.victories}`;
+      } catch (error) {
+        document.getElementById("summary").textContent = "Помилка завантаження";
+        console.error("Помилка при отриманні даних:", error);
       }
-      return credits.toLocaleString();
     }
 
-    function updateNumberWithAnimation(elementId, newValue) {
-      const element = document.getElementById(elementId);
-      element.classList.add('number-update');
-      element.textContent = newValue;
-      setTimeout(() => {
-        element.classList.remove('number-update');
-      }, 300);
-    }
-
-    function sendToGoogleSheet(credits, victory, tankName) {
-      const battleNum = battles;
-      const url = "https://script.google.com/macros/s/AKfycbzLgDw8bDdVeuQq9BPGsgjm7YjU0CINxLt0gTXz1dF3ANuZnhWs8JsuJ9XEZ8plAAuV/exec";
-
-      fetch(url, {
-        method: "POST",
-        body: JSON.stringify({
-          credits,
-          victory,
-          battleNum,
-          tank: tankName
-        }),
-        headers: {
-          "Content-Type": "application/json"
-        }
-      }).then(() => console.log("📤 Дані надіслано в Google Таблицю"))
-        .catch(err => console.error("❌ Помилка надсилання:", err));
-    }
-
-    sdk.data.battle.onBattleResult.watch(result => {
-      if (result && result.personal) {
-        const playerId = Object.keys(result.personal)[0];
-        const personal = result.personal[playerId];
-
-        const creditsEarned = personal.credits || 0;
-        const autoRepairCost = personal.autoRepairCost || 0;
-        const autoEquipCost = personal.autoEquipCost?.[0] || 0;
-        const autoLoadCost = personal.autoLoadCost?.[0] || 0;
-
-        const creditsSpent = autoRepairCost + autoEquipCost + autoLoadCost;
-        const creditsEarnedAfterExpenses = creditsEarned - creditsSpent;
-
-        totalCredits += creditsEarnedAfterExpenses;
-
-        updateNumberWithAnimation('credits', formatCredits(totalCredits));
-
-        const currentPlayerId = sdk.data.player.id.value;
-        let isVictory = false;
-
-        if (result.players[currentPlayerId] && result.common?.winnerTeam) {
-          if (parseInt(result.players[currentPlayerId].team) === parseInt(result.common.winnerTeam)) {
-            victories++;
-            isVictory = true;
-          }
-        }
-
-        const tankName = sdk.data.tank.name.value || "";
-        sendToGoogleSheet(creditsEarnedAfterExpenses, isVictory, tankName);
-
-        document.getElementById('victories-battles').innerText = `${victories}/${battles}`;
-      }
-    });
-
-    sdk.data.battle.isInBattle.watch((inBattle) => {
-      if (inBattle) {
-        battles++;
-        document.getElementById('victories-battles').innerText = `${victories}/${battles}`;
-      }
-    });
+    fetchData();
+    setInterval(fetchData, 15000); // оновлення кожні 15 секунд
   </script>
 </body>
 </html>
