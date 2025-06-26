@@ -1,60 +1,129 @@
 <!DOCTYPE html>
-<html>
+<html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <title>WoT Tracker</title>
-  <script src="https://sdk.wgapps.ru/wot/sdk.js"></script>
+  <title>WoT Battle Tracker</title>
+  <script src="https://unpkg.com/wotstat-widgets-sdk"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #000;
+    }
+    .tracker {
+      background: #111;
+      border: 2px solid #ffc107;
+      border-radius: 1em;
+      padding: 1rem;
+      width: 300px;
+      box-shadow: 0 0 10px rgba(255,193,7,0.5);
+      text-align: center;
+    }
+    .tracker h2 {
+      margin: 0 0 0.5rem;
+      color: #ffc107;
+    }
+    .tracker p {
+      margin: 0.3rem 0;
+    }
+  </style>
 </head>
 <body>
-  <h1>WoT Tracker is running...</h1>
+  <div class="tracker">
+    <h2>Фарм срібла</h2>
+    <p>Кредити: <span id="credits">0</span></p>
+    <p>Бої: <span id="battles">0</span></p>
+    <p>Перемоги: <span id="wins">0</span></p>
+  </div>
 
-  <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzFFBYqXKOJ5ePuUqNh-nlkVjcUAPW5ax_scyIcd0TlXC6q6TJKY8MWHsSd_gg0p-Nj0Q/exec";
+  <script type="module">
+    import { WidgetSDK } from 'https://unpkg.com/wotstat-widgets-sdk?module';
+    const sdk = new WidgetSDK();
 
+    let totalCredits = 0;
+    let battleCount = 0;
+    let winCount = 0;
     let lastBattleId = localStorage.getItem("lastBattleId");
 
-    sdk.ready.then(() => {
-      console.log("SDK ready");
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec";
 
-      sdk.data.battle.onBattleResult.watch(result => {
-        const battleId = result.battle_id;
-        if (battleId === lastBattleId) {
-          console.log("Duplicate battle, skipping...");
-          return;
-        }
+    function updateUI() {
+      document.getElementById('credits').textContent = totalCredits.toLocaleString();
+      document.getElementById('battles').textContent = battleCount;
+      document.getElementById('wins').textContent = winCount;
+    }
 
-        lastBattleId = battleId;
-        localStorage.setItem("lastBattleId", battleId);
+    function sendToSheet(payload) {
+      const query = new URLSearchParams(payload).toString();
+      const url = `${SCRIPT_URL}?${query}`;
 
-        const timestamp = new Date().toLocaleString('uk-UA');
-        const accountId = result.account_id;
-        const battleCount = 1;
-        const victory = result.is_victory ? "Перемога" : "Поразка";
-        const damage = result.damage_dealt;
-        const frags = result.frags;
-        const credits = result.credits;
+      fetch(url)
+        .then(res => res.text())
+        .then(txt => console.log('Sheet response:', txt))
+        .catch(err => console.error('Sheet error:', err));
+    }
 
-        const payload = {
-          time: timestamp,
-          count: battleCount,
-          id: accountId,
-          result: victory,
-          damage: damage,
-          frags: frags,
-          credits: credits
-        };
+    sdk.data.battle.isInBattle.watch(inBattle => {
+      if (inBattle) {
+        battleCount++;
+        updateUI();
+      }
+    });
 
-        console.log("Sending data to Google Sheet:", payload);
+    sdk.data.battle.onBattleResult.watch(result => {
+      if (!result || !result.personal) return;
 
-        fetch(SCRIPT_URL, {
-          method: "POST",
-          mode: "no-cors",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
-        });
-      });
+      // 🛡 Перевірка на дублювання
+      const battleId = result.battle_id;
+      if (battleId && battleId === lastBattleId) {
+        console.log("🔁 Бій уже записано, пропускаємо...");
+        return;
+      }
+      lastBattleId = battleId;
+      localStorage.setItem("lastBattleId", battleId);
+
+      const pid = Object.keys(result.personal)[0];
+      const personal = result.personal[pid];
+      const earned = personal.credits || 0;
+      const repair = personal.autoRepairCost || 0;
+      const equip  = personal.autoEquipCost?.[0] || 0;
+      const load   = personal.autoLoadCost?.[0] || 0;
+      const netCredits = earned - (repair + equip + load);
+      totalCredits += netCredits;
+
+      const myTeam = sdk.data.player.id.value;
+      const teamId = result.players[myTeam]?.team;
+      const winner = result.common?.winnerTeam;
+      const isWin = teamId && winner && parseInt(teamId) === parseInt(winner);
+      if (isWin) winCount++;
+
+      const tankName = sdk.data.tank.name.value || '';
+      const mapName  = sdk.data.map.name.value || '';
+      const damage   = personal.damageDealt  || 0;
+      const assist   = (personal.damageAssisted || 0) + (personal.spottedAssisted || 0);
+
+      updateUI();
+
+      const now = new Date();
+      const payload = {
+        time:    now.toLocaleString('uk-UA'),
+        battle:  battleCount,
+        tank:    tankName,
+        map:     mapName,
+        win:     isWin ? 'Перемога' : 'Поразка',
+        damage:  damage,
+        assist:  assist,
+        credits: netCredits
+      };
+
+      console.log('📤 Відправляємо:', payload);
+      sendToSheet(payload);
     });
   </script>
 </body>
