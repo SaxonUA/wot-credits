@@ -1,72 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>WoT Tracker</title>
-  <script src="https://webstatic-se.wgcdn.co/web/20210622/js/sdk.js"></script>
+  <script src="https://sdk.wgapps.ru/wot/sdk.js"></script>
 </head>
 <body>
   <h1>WoT Tracker is running...</h1>
+
   <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec';
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzFFBYqXKOJ5ePuUqNh-nlkVjcUAPW5ax_scyIcd0TlXC6q6TJKY8MWHsSd_gg0p-Nj0Q/exec";
 
-    let lastSentBattleID = null;
-    let battleCount = 1;
-
-    function sendToSheet(payload) {
-      fetch(SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    }
-
-    function getTankName(tankId, vehicles) {
-      const tank = vehicles[tankId];
-      return tank ? tank.name_i18n || tank.userString : 'Unknown';
-    }
-
-    function getMapName(arenaId, maps) {
-      const map = maps[arenaId];
-      return map ? map.name_i18n || map.name : 'Unknown';
-    }
+    let lastBattleId = localStorage.getItem("lastBattleId");
 
     sdk.ready.then(() => {
-      const vehicles = sdk.dictionary.vehicles;
-      const maps = sdk.dictionary.arena;
+      console.log("SDK ready");
 
       sdk.data.battle.onBattleResult.watch(result => {
-        if (!result || !result.personal) return;
+        const battleId = result.battle_id;
+        if (battleId === lastBattleId) {
+          console.log("Duplicate battle, skipping...");
+          return;
+        }
 
-        const battleID = result.common?.arenaCreateTime;
-        if (battleID === lastSentBattleID) return;
-        lastSentBattleID = battleID;
+        lastBattleId = battleId;
+        localStorage.setItem("lastBattleId", battleId);
 
-        const tankId = result.personal.vehicleId;
-        const mapId = result.common.arenaType;
-        const isWin = result.personal.victory;
-        const damage = result.personal.damageDealt || 0;
-        const assist = result.personal.assistDamage || 0;
-        const netCredits = result.personal.creditsNet || 0;
+        const timestamp = new Date().toLocaleString('uk-UA');
+        const accountId = result.account_id;
+        const battleCount = 1;
+        const victory = result.is_victory ? "Перемога" : "Поразка";
+        const damage = result.damage_dealt;
+        const frags = result.frags;
+        const credits = result.credits;
 
-        const tankName = getTankName(tankId, vehicles);
-        const mapName = getMapName(mapId, maps);
-
-        const now = new Date();
         const payload = {
-          time: now.toLocaleString('uk-UA'),
-          battle: battleCount++,
-          tank: tankName,
-          map: mapName,
-          win: isWin ? 'Перемога' : 'Поразка',
+          time: timestamp,
+          count: battleCount,
+          id: accountId,
+          result: victory,
           damage: damage,
-          assist: assist,
-          credits: netCredits
+          frags: frags,
+          credits: credits
         };
 
-        console.log('Надсилаю до таблиці:', payload);
-        sendToSheet(payload);
+        console.log("Sending data to Google Sheet:", payload);
+
+        fetch(SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
       });
     });
   </script>
