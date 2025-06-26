@@ -50,7 +50,7 @@
     let battleCount = 0;
     let winCount = 0;
 
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzFFBYqXKOJ5ePuUqNh-nlkVjcUAPW5ax_scyIcd0TlXC6q6TJKY8MWHsSd_gg0p-Nj0Q/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec";
 
     function updateUI() {
       document.getElementById('credits').textContent = totalCredits.toLocaleString();
@@ -59,14 +59,13 @@
     }
 
     function sendToSheet(payload) {
-      fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      .then(res => res.text())
-      .then(txt => console.log('Sheet response:', txt))
-      .catch(err => console.error('Sheet error:', err));
+      const query = new URLSearchParams(payload).toString();
+      const url = `${SCRIPT_URL}?${query}`;
+
+      fetch(url)
+        .then(res => res.text())
+        .then(txt => console.log('Sheet response:', txt))
+        .catch(err => console.error('Sheet error:', err));
     }
 
     sdk.data.battle.isInBattle.watch(inBattle => {
@@ -79,7 +78,6 @@
     sdk.data.battle.onBattleResult.watch(result => {
       if (!result || !result.personal) return;
 
-      // credits
       const pid = Object.keys(result.personal)[0];
       const personal = result.personal[pid];
       const earned = personal.credits || 0;
@@ -89,23 +87,19 @@
       const netCredits = earned - (repair + equip + load);
       totalCredits += netCredits;
 
-      // win detection
       const myTeam = sdk.data.player.id.value;
       const teamId = result.players[myTeam]?.team;
       const winner = result.common?.winnerTeam;
       const isWin = teamId && winner && parseInt(teamId) === parseInt(winner);
       if (isWin) winCount++;
 
-      // tank, map, damage, assist
       const tankName = sdk.data.tank.name.value || '';
       const mapName  = sdk.data.map.name.value || '';
       const damage   = personal.damageDealt  || 0;
-      const assist   = (personal.damageAssisted || 0)
-                       + (personal.spottedAssisted || 0);
+      const assist   = (personal.damageAssisted || 0) + (personal.spottedAssisted || 0);
 
       updateUI();
 
-      // prepare payload
       const now = new Date();
       const payload = {
         time:    now.toLocaleString('uk-UA'),
