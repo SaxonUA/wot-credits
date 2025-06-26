@@ -2,34 +2,47 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <title>Debug Кредити</title>
-  <script src="https://unpkg.com/wotstat-widgets-sdk"></script>
+  <title>GET Кредити в Таблицю</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 30px;
+      background: #111;
+      color: #fff;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
-  <h1>Тест відправки в таблицю</h1>
-  <button onclick="testSend()">Відправити тестові дані</button>
+  <h1>Відправка GET-запиту до Google Таблиці</h1>
+  <button onclick="sendGet()">Відправити тестові дані</button>
 
   <script>
-    function testSend() {
-      const testData = {
-        credits: 12345,
-        victory: true,
-        battleNum: 7,
-        tank: "Object 430U"
-      };
+    function sendGet() {
+      const credits = 89000;
+      const victory = true;
+      const battleNum = 1;
+      const tank = "Leopard 1";
 
-      console.log("🔄 Відправляємо:", testData);
+      const params = new URLSearchParams({
+        credits,
+        victory,
+        battleNum,
+        tank
+      });
 
-      fetch("https://script.google.com/macros/s/AKfycbxyM231FhBV4ie57KBS8fKc1AHhwxKTbE3Ic0dZFoofPVGruyEET5dRO19X2FFKfZ5H/exec", {
-        method: "POST",
-        body: JSON.stringify(testData),
-        headers: {
-          "Content-Type": "application/json"
-        }
-      })
-      .then(res => res.text())
-      .then(response => console.log("✅ Відповідь від Google Script:", response))
-      .catch(error => console.error("❌ Помилка при fetch:", error));
+      const url = "https://script.google.com/macros/s/AKfycbyBWeLrdA3nJc7riCsHSnekAKFW3mHbzIkm775Z9AAB7YkoEDvSA-2FN-95ZtFWLcMZgw/exec?" + params.toString();
+
+      console.log("➡ GET:", url);
+
+      fetch(url)
+        .then(res => res.text())
+        .then(txt => console.log("✅ Відповідь від сервера:", txt))
+        .catch(err => console.error("❌ Помилка:", err));
     }
   </script>
 </body>
