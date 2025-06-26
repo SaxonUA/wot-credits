@@ -5,27 +5,25 @@
   <title>WoT Battle Tracker</title>
   <script src="https://unpkg.com/wotstat-widgets-sdk"></script>
   <style>
-   body {
-  margin: 0;
-  padding: 0;
-  font-family: sans-serif;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  background: transparent; /* повністю прозорий фон */
-}
-
-.tracker {
-  background: rgba(0, 0, 0, 0.5); /* напівпрозорий чорний */
-  border: 2px solid #ffc107;
-  border-radius: 1em;
-  padding: 1rem;
-  width: 300px;
-  box-shadow: 0 0 10px rgba(255,193,7,0.7);
-  text-align: center;
-}
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .tracker {
+      background: #111;
+      border: 2px solid #ffc107;
+      border-radius: 1em;
+      padding: 1rem;
+      width: 300px;
+      box-shadow: 0 0 10px rgba(255,193,7,0.5);
+      text-align: center;
+    }
     .tracker h2 {
       margin: 0 0 0.5rem;
       color: #ffc107;
@@ -37,7 +35,7 @@
 </head>
 <body>
   <div class="tracker">
-    <h2>Фарм срібла</h2>
+    <h2>WoT Battle Tracker</h2>
     <p>Кредити: <span id="credits">0</span></p>
     <p>Бої: <span id="battles">0</span></p>
     <p>Перемоги: <span id="wins">0</span></p>
@@ -50,7 +48,6 @@
     let totalCredits = 0;
     let battleCount = 0;
     let winCount = 0;
-    let lastBattleId = localStorage.getItem("lastBattleId");
 
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec";
 
@@ -80,15 +77,6 @@
     sdk.data.battle.onBattleResult.watch(result => {
       if (!result || !result.personal) return;
 
-      // 🛡 Перевірка на дублювання
-      const battleId = result.battle_id;
-      if (battleId && battleId === lastBattleId) {
-        console.log("🔁 Бій уже записано, пропускаємо...");
-        return;
-      }
-      lastBattleId = battleId;
-      localStorage.setItem("lastBattleId", battleId);
-
       const pid = Object.keys(result.personal)[0];
       const personal = result.personal[pid];
       const earned = personal.credits || 0;
@@ -106,7 +94,7 @@
 
       const tankName = sdk.data.tank.name.value || '';
       const mapName  = sdk.data.map.name.value || '';
-      const damage   = personal.damageDealt  || 0;
+      const damage   = personal.damageDealt || 0;
       const assist   = (personal.damageAssisted || 0) + (personal.spottedAssisted || 0);
 
       updateUI();
@@ -123,7 +111,15 @@
         credits: netCredits
       };
 
-      console.log('📤 Відправляємо:', payload);
+      // 🧠 Перевірка на дублювання через JSON hash
+      const payloadHash = JSON.stringify(payload);
+      if (payloadHash === localStorage.getItem("lastPayloadHash")) {
+        console.log("🔁 Цей самий запис уже відправлено.");
+        return;
+      }
+      localStorage.setItem("lastPayloadHash", payloadHash);
+
+      console.log('Sending:', payload);
       sendToSheet(payload);
     });
   </script>
