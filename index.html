@@ -1,119 +1,36 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8" />
-  <title>Кредити WoT</title>
+  <meta charset="UTF-8">
+  <title>Debug Кредити</title>
   <script src="https://unpkg.com/wotstat-widgets-sdk"></script>
-  <style>
-    :root {
-      --orange: #ffa500;
-      --orange-dark: #ff8c00;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: "Warhelios", sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: transparent;
-      color: white;
-    }
-
-    .box {
-      border: 3px solid var(--orange);
-      border-radius: 15px;
-      padding: 20px 30px;
-      background-color: #111;
-      box-shadow: 0 0 15px var(--orange-dark);
-      width: 320px;
-      text-align: center;
-    }
-
-    .header {
-      font-size: 1.2em;
-      color: var(--orange);
-      margin-bottom: 10px;
-    }
-
-    .credits {
-      font-size: 2.5em;
-      font-weight: bold;
-      margin: 10px 0;
-      color: red;
-    }
-
-    .footer {
-      margin-top: 20px;
-      font-size: 1.2em;
-      color: var(--orange);
-    }
-
-    .top-info {
-      position: absolute;
-      top: 15px;
-      left: 15px;
-      font-size: 1.2em;
-      color: var(--orange);
-    }
-  </style>
 </head>
 <body>
-  <div class="top-info" id="battle-info">Бої - 0 Перемоги - 0</div>
-  <div class="box">
-    <div class="header">КРЕДИТИ</div>
-    <div class="credits" id="credit-value">-</div>
-    <div class="footer">Останній бій: <span id="last-battle">-</span></div>
-  </div>
+  <h1>Тест відправки в таблицю</h1>
+  <button onclick="testSend()">Відправити тестові дані</button>
 
-  <script type="module">
-    const { WidgetSDK } = WotstatWidgetsSdk;
-    const sdk = new WidgetSDK();
+  <script>
+    function testSend() {
+      const testData = {
+        credits: 12345,
+        victory: true,
+        battleNum: 7,
+        tank: "Object 430U"
+      };
 
-    let totalCredits = 0;
-    let totalBattles = 0;
-    let totalWins = 0;
+      console.log("🔄 Відправляємо:", testData);
 
-    function formatNumber(n) {
-      return n.toLocaleString("uk-UA");
-    }
-
-    sdk.data.battle.onBattleResult.watch(result => {
-      if (result && result.personal) {
-        const playerId = Object.keys(result.personal)[0];
-        const personal = result.personal[playerId];
-
-        const creditsEarned = personal.credits || 0;
-        const autoRepairCost = personal.autoRepairCost || 0;
-        const autoEquipCost = personal.autoEquipCost?.[0] || 0;
-        const autoLoadCost = personal.autoLoadCost?.[0] || 0;
-
-        const creditsNet = creditsEarned - (autoRepairCost + autoEquipCost + autoLoadCost);
-
-        totalCredits += creditsNet;
-        totalBattles++;
-
-        const currentPlayerId = sdk.data.player.id.value;
-        let isVictory = false;
-
-        if (result.players[currentPlayerId] && result.common?.winnerTeam) {
-          if (parseInt(result.players[currentPlayerId].team) === parseInt(result.common.winnerTeam)) {
-            totalWins++;
-            isVictory = true;
-          }
+      fetch("https://script.google.com/macros/s/AKfycbxyM231FhBV4ie57KBS8fKc1AHhwxKTbE3Ic0dZFoofPVGruyEET5dRO19X2FFKfZ5H/exec", {
+        method: "POST",
+        body: JSON.stringify(testData),
+        headers: {
+          "Content-Type": "application/json"
         }
-
-        document.getElementById("credit-value").innerText = formatNumber(totalCredits);
-        document.getElementById("last-battle").innerText = formatNumber(creditsNet);
-        document.getElementById("battle-info").innerText = `Бої - ${totalBattles} Перемоги - ${totalWins}`;
-      }
-    });
+      })
+      .then(res => res.text())
+      .then(response => console.log("✅ Відповідь від Google Script:", response))
+      .catch(error => console.error("❌ Помилка при fetch:", error));
+    }
   </script>
 </body>
 </html>
