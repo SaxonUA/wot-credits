@@ -5,25 +5,27 @@
   <title>WoT Battle Tracker</title>
   <script src="https://unpkg.com/wotstat-widgets-sdk"></script>
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: sans-serif;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
-    .tracker {
-      background: #111;
-      border: 2px solid #ffc107;
-      border-radius: 1em;
-      padding: 1rem;
-      width: 300px;
-      box-shadow: 0 0 10px rgba(255,193,7,0.5);
-      text-align: center;
-    }
+   body {
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: transparent; /* повністю прозорий фон */
+}
+
+.tracker {
+  background: rgba(0, 0, 0, 0.8); /* напівпрозорий чорний */
+  border: 2px solid #ffc107;
+  border-radius: 1em;
+  padding: 1rem;
+  width: 300px;
+  box-shadow: 0 0 10px rgba(255,193,7,0.7);
+  text-align: center;
+}
     .tracker h2 {
       margin: 0 0 0.5rem;
       color: #ffc107;
