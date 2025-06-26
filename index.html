@@ -2,48 +2,189 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <title>GET Кредити в Таблицю</title>
+  <title>Лічильник кредитів</title>
+  <script src="https://unpkg.com/wotstat-widgets-sdk"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 30px;
-      background: #111;
-      color: #fff;
+    :root {
+      --wotstat-primary: #ffc107;
+      --wotstat-accent: rgba(255, 193, 7, 0.2);
     }
-    button {
-      font-size: 18px;
-      padding: 10px 20px;
-      cursor: pointer;
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      background: transparent !important;
+    }
+
+    @font-face {
+      font-family: 'Warhelios';
+      src: url('https://widgets.wotstat.info/assets/Warhelios-Regular-d5nrEqK6.woff2') format('woff2');
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    body {
+      font-family: "Warhelios", sans-serif;
+      background: transparent !important;
+      font-weight: bold;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      margin: 0.01em 0;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .card {
+      background: transparent !important;
+      border: 1px solid var(--wotstat-primary);
+      border-radius: 2em;
+      padding: 15px;
+      margin: auto;
+      width: 300px;
+      height: fit-content;
+      box-shadow: 0 4px 12px var(--wotstat-accent);
+      position: relative;
+    }
+
+    h1 {
+      color: var(--wotstat-primary);
+      margin: 0.1em 0;
+      font-size: 1.8em;
+      text-transform: uppercase;
+    }
+
+    p {
+      color: var(--wotstat-primary);
+      font-size: 2.0em;
+      margin: 0.2em 0;
+    }
+
+    #victories-battles {
+      position: absolute;
+      top: 10px;
+      right: 30px;
+      color: var(--wotstat-primary);
+      font-size: 1.4em;
+    }
+
+    #credits {
+      display: inline-block;
+      min-width: 100px;
+    }
+
+    @keyframes numberChange {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .number-update {
+      animation: numberChange 0.3s ease-in-out;
     }
   </style>
 </head>
+
 <body>
-  <h1>Відправка GET-запиту до Google Таблиці</h1>
-  <button onclick="sendGet()">Відправити тестові дані</button>
+  <div class="card">
+    <h1>КРЕДИТИ</h1>
+    <p><span id="credits">0</span></p>
+    <p id="victories-battles">0/0</p>
+  </div>
 
-  <script>
-    function sendGet() {
-      const credits = 89000;
-      const victory = true;
-      const battleNum = 1;
-      const tank = "Leopard 1";
+  <script type="module">
+    const { WidgetSDK } = WotstatWidgetsSdk;
+    const sdk = new WidgetSDK();
 
-      const params = new URLSearchParams({
-        credits,
-        victory,
-        battleNum,
-        tank
-      });
+    let totalCredits = 0;
+    let battles = 0;
+    let victories = 0;
 
-      const url = "https://script.google.com/macros/s/AKfycbyBWeLrdA3nJc7riCsHSnekAKFW3mHbzIkm775Z9AAB7YkoEDvSA-2FN-95ZtFWLcMZgw/exec?" + params.toString();
-
-      console.log("➡ GET:", url);
-
-      fetch(url)
-        .then(res => res.text())
-        .then(txt => console.log("✅ Відповідь від сервера:", txt))
-        .catch(err => console.error("❌ Помилка:", err));
+    function formatCredits(credits) {
+      if (credits >= 10000) {
+        return (credits / 1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + 'k';
+      }
+      return credits.toLocaleString();
     }
+
+    function updateNumberWithAnimation(elementId, newValue) {
+      const element = document.getElementById(elementId);
+      element.classList.add('number-update');
+      element.textContent = newValue;
+      setTimeout(() => {
+        element.classList.remove('number-update');
+      }, 300);
+    }
+
+    function sendToGoogleSheet(credits, victory, tankName, mapName, damage, assist) {
+      const battleNum = battles;
+      const dateTime = new Date().toLocaleString("uk-UA"); // формат: ДД.ММ.РРРР ГГ:ХХ
+      const url = "https://script.google.com/macros/s/AKfycbxyM231FhBV4ie57KBS8fKc1AHhwxKTbE3Ic0dZFoofPVGruyEET5dRO19X2FFKfZ5H/exec";
+
+      fetch(url, {
+        method: "POST",
+        body: JSON.stringify({
+          dateTime,
+          battleNum,
+          tank: tankName,
+          map: mapName,
+          credits,
+          victory,
+          damage,
+          assist
+        }),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }).then(() => console.log("📤 Дані надіслано в Google Таблицю"))
+        .catch(err => console.error("❌ Помилка надсилання:", err));
+    }
+
+    sdk.data.battle.onBattleResult.watch(result => {
+      if (result && result.personal) {
+        const playerId = Object.keys(result.personal)[0];
+        const personal = result.personal[playerId];
+
+        const creditsEarned = personal.credits || 0;
+        const autoRepairCost = personal.autoRepairCost || 0;
+        const autoEquipCost = personal.autoEquipCost?.[0] || 0;
+        const autoLoadCost = personal.autoLoadCost?.[0] || 0;
+
+        const creditsSpent = autoRepairCost + autoEquipCost + autoLoadCost;
+        const creditsEarnedAfterExpenses = creditsEarned - creditsSpent;
+
+        totalCredits += creditsEarnedAfterExpenses;
+
+        updateNumberWithAnimation('credits', formatCredits(totalCredits));
+
+        const currentPlayerId = sdk.data.player.id.value;
+        let isVictory = false;
+
+        if (result.players[currentPlayerId] && result.common?.winnerTeam) {
+          if (parseInt(result.players[currentPlayerId].team) === parseInt(result.common.winnerTeam)) {
+            victories++;
+            isVictory = true;
+          }
+        }
+
+        const tankName = sdk.data.tank.name.value || "";
+        const mapName = sdk.data.map.name.value || "";
+        const damage = personal.damageDealt || 0;
+        const assist = personal.damageAssisted || 0;
+
+        sendToGoogleSheet(creditsEarnedAfterExpenses, isVictory, tankName, mapName, damage, assist);
+
+        document.getElementById('victories-battles').innerText = `${victories}/${battles}`;
+      }
+    });
+
+    sdk.data.battle.isInBattle.watch((inBattle) => {
+      if (inBattle) {
+        battles++;
+        document.getElementById('victories-battles').innerText = `${victories}/${battles}`;
+      }
+    });
   </script>
 </body>
 </html>
