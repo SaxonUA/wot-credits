@@ -14,13 +14,14 @@
       align-items: center;
       justify-content: center;
       height: 100vh;
+      background: transparent;
     }
     .tracker {
       background: rgba(0,0,0,0.5);
       border: 2px solid #ffc107;
       border-radius: 1em;
       padding: 1rem;
-      width: 300px;
+      width: 320px;
       box-shadow: 0 0 10px rgba(255,193,7,0.5);
       text-align: center;
     }
@@ -34,101 +35,145 @@
   </style>
 </head>
 <body>
-  <div class="tracker">
-    <h2>WoT Battle Tracker</h2>
-    <p>Кредити: <span id="credits">0</span></p>
-    <p>Бої: <span id="battles">0</span></p>
-    <p>Перемоги: <span id="wins">0</span></p>
-  </div>
 
-  <script type="module">
-    import { WidgetSDK } from 'https://unpkg.com/wotstat-widgets-sdk?module';
-    const sdk = new WidgetSDK();
+<div class="tracker">
+  <h2>WoT Battle Tracker</h2>
+  <p>Срібло (сесія): <span id="credits">0</span></p>
+  <p>Бої: <span id="battles">0</span></p>
+  <p>Перемоги: <span id="wins">0</span></p>
+</div>
 
-    let totalCredits = 0;
-    let battleCount = 0;
-    let winCount = 0;
+<script type="module">
+import { WidgetSDK } from 'https://unpkg.com/wotstat-widgets-sdk?module';
+const sdk = new WidgetSDK();
 
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec";
+let totalCredits = 0;
+let battleCount = 0;
+let winCount = 0;
 
-    function updateUI() {
-      document.getElementById('credits').textContent = totalCredits.toLocaleString();
-      document.getElementById('battles').textContent = battleCount;
-      document.getElementById('wins').textContent = winCount;
-    }
+// для реального срібла
+let creditsBeforeBattle = null;
 
-    function sendToSheet(payload) {
-      const query = new URLSearchParams(payload).toString();
-      const url = `${SCRIPT_URL}?${query}`;
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec";
 
-      fetch(url)
-        .then(res => res.text())
-        .then(txt => console.log('Sheet response:', txt))
-        .catch(err => console.error('Sheet error:', err));
-    }
+function updateUI() {
+  document.getElementById('credits').textContent = totalCredits.toLocaleString();
+  document.getElementById('battles').textContent = battleCount;
+  document.getElementById('wins').textContent = winCount;
+}
 
-    let lastPayloadHash = null;
-    let lastSendTime = 0;
+function sendToSheet(payload) {
+  const query = new URLSearchParams(payload).toString();
+  fetch(`${SCRIPT_URL}?${query}`)
+    .then(r => r.text())
+    .then(t => console.log('Sheet:', t))
+    .catch(e => console.error('Sheet error:', e));
+}
 
-    sdk.data.battle.isInBattle.watch(inBattle => {
-      if (inBattle) {
-        battleCount++;
-        updateUI();
-      }
-    });
+// фіксуємо срібло ПЕРЕД боєм
+sdk.data.battle.isInBattle.watch(inBattle => {
+  if (inBattle) {
+    battleCount++;
+    creditsBeforeBattle = sdk.data.player.credits.value;
+    updateUI();
+  }
+});
 
-    sdk.data.battle.onBattleResult.watch(result => {
-      if (!result || !result.personal) return;
+sdk.data.battle.onBattleResult.watch(result => {
+  if (!result || !result.personal) return;
 
-      const pid = Object.keys(result.personal)[0];
-      const personal = result.personal[pid];
-      const earned = personal.credits || 0;
-      const repair = personal.autoRepairCost || 0;
-      const equip  = personal.autoEquipCost?.[0] || 0;
-      const load   = personal.autoLoadCost?.[0] || 0;
-      const netCredits = earned - (repair + equip + load);
-      totalCredits += netCredits;
+  const pid = Object.keys(result.personal)[0];
+  const p = result.personal[pid];
 
-      const myTeam = sdk.data.player.id.value;
-      const teamId = result.players[myTeam]?.team;
-      const winner = result.common?.winnerTeam;
-      const isWin = teamId && winner && parseInt(teamId) === parseInt(winner);
-      if (isWin) winCount++;
+  // РЕАЛЬНЕ срібло через дельту
+  const creditsAfter = sdk.data.player.credits.value;
+  const deltaCredits = (creditsBeforeBattle !== null)
+    ? creditsAfter - creditsBeforeBattle
+    : 0;
 
-      const tankName = sdk.data.tank.name.value || '';
-      const mapName  = sdk.data.map.name.value || '';
-      const damage   = personal.damageDealt || 0;
-      const assist   = (personal.damageAssisted || 0) + (personal.spottedAssisted || 0);
+  totalCredits += deltaCredits;
 
-      updateUI();
+  const myId = sdk.data.player.id.value;
+  const myTeam = result.players?.[myId]?.team;
+  const winner = result.common?.winnerTeam;
+  const isWin = myTeam && winner && Number(myTeam) === Number(winner);
+  if (isWin) winCount++;
 
-      const now = new Date();
-      const payload = {
-        time:    now.toLocaleString('uk-UA'),
-        battle:  battleCount,
-        tank:    tankName,
-        map:     mapName,
-        win:     isWin ? 'Перемога' : 'Поразка',
-        damage:  damage,
-        assist:  assist,
-        credits: netCredits
-      };
+  updateUI();
 
-      const payloadHash = JSON.stringify(payload);
-      const nowTime = Date.now();
+  const now = new Date();
 
-      // 🧠 Захист від дублювання
-      if (payloadHash === lastPayloadHash && nowTime - lastSendTime < 3000) {
-        console.log("🔁 Цей самий запис уже відправлено.");
-        return;
-      }
+  const payload = {
+    // TIME
+    time_iso: now.toISOString(),
+    time_local: now.toLocaleString('uk-UA'),
 
-      lastPayloadHash = payloadHash;
-      lastSendTime = nowTime;
+    // META
+    game_mode: result.common?.gameMode || '',
+    arena_id: result.common?.arenaUniqueID || '',
+    is_finished: result.common?.isFinished ?? '',
+    duration: result.common?.duration ?? '',
+    phase: result.common?.phase ?? '',
 
-      console.log('📤 Надсилається:', payload);
-      sendToSheet(payload);
-    });
-  </script>
+    // MAP / TANK
+    map: sdk.data.map.name.value || '',
+    tank: sdk.data.tank.name.value || '',
+    tank_level: sdk.data.tank.level.value || '',
+    tank_class: sdk.data.tank.type.value || '',
+
+    // RESULT
+    my_team: myTeam || '',
+    winner_team: winner || '',
+    win: isWin ? 1 : 0,
+
+    // SILVER (ВСЕ ЩО МОЖЛИВО)
+    credits_before: creditsBeforeBattle,
+    credits_after: creditsAfter,
+    credits_delta_real: deltaCredits,          // ГОЛОВНЕ
+    credits_raw: p.credits || 0,
+    repair_cost: p.autoRepairCost || 0,
+    equip_cost: (p.autoEquipCost || []).reduce((a,b)=>a+b,0),
+    ammo_cost: (p.autoLoadCost || []).reduce((a,b)=>a+b,0),
+
+    // XP
+    xp: p.xp || 0,
+    xp_raw: p.xpBeforeBonuses || 0,
+    free_xp: p.freeXP || 0,
+    booster_xp: p.boosterXP || 0,
+
+    // ECONOMY EXTRA
+    bonds: p.bonds || 0,
+    gold: p.gold || 0,
+    premium: p.isPremium || false,
+    booster_credits: p.boosterCredits || 0,
+
+    // COMBAT
+    damage_dealt: p.damageDealt || 0,
+    damage_received: p.damageReceived || 0,
+    damage_blocked: p.damageBlockedByArmor || 0,
+
+    assist_track: p.damageAssisted || 0,
+    assist_spot: p.spottedAssisted || 0,
+    assist_stun: p.stunAssisted || 0,
+
+    frags: p.frags || 0,
+    shots: p.shots || 0,
+    hits: p.hits || 0,
+    penetrations: p.piercings || 0,
+
+    cap: p.capturePoints || 0,
+    def: p.defencePoints || 0,
+    mileage: p.mileage || 0,
+
+    // FRONTLINE (якщо є)
+    frontline_rank: p.rank || '',
+    frontline_points: p.frontlinePoints || ''
+  };
+
+  console.log('📤 PAYLOAD:', payload);
+  sendToSheet(payload);
+});
+</script>
+
 </body>
 </html>
