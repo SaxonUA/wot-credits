@@ -13,15 +13,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      background: transparent;
+      min-height: 100vh;
+      background: rgba(0,0,0,0.8);
     }
     .tracker {
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.7);
       border: 2px solid #ffc107;
       border-radius: 1em;
       padding: 1rem;
-      width: 320px;
+      width: 350px;
       box-shadow: 0 0 10px rgba(255,193,7,0.5);
       text-align: center;
     }
@@ -32,148 +32,222 @@
     .tracker p {
       margin: 0.3rem 0;
     }
+    .details {
+      margin-top: 1rem;
+      text-align: left;
+      max-height: 300px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.5);
+      padding: 0.5rem;
+      border-radius: 0.5em;
+      border: 1px solid #444;
+      font-size: 0.8rem;
+    }
+    .details pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .details h4 {
+      margin: 0 0 0.5rem;
+      color: #4fc3f7;
+      text-align: center;
+    }
+    .details-item {
+      margin: 0.2rem 0;
+    }
+    .details-label {
+      color: #ffb74d;
+      font-weight: bold;
+    }
+    .details-value {
+      color: #a5d6a7;
+    }
+    .toggle-details {
+      margin-top: 0.5rem;
+      background: #ffc107;
+      border: none;
+      padding: 0.3rem 0.8rem;
+      border-radius: 0.3rem;
+      cursor: pointer;
+      font-weight: bold;
+      color: #000;
+    }
+    .toggle-details:hover {
+      background: #ffca28;
+    }
   </style>
 </head>
 <body>
+  <div class="tracker">
+    <h2>WoT Battle Tracker</h2>
+    <p>Кредити: <span id="credits">0</span></p>
+    <p>Бої: <span id="battles">0</span></p>
+    <p>Перемоги: <span id="wins">0</span></p>
+    
+    <button class="toggle-details" onclick="toggleDetails()">Показати деталі бою</button>
+    
+    <div class="details" id="battleDetails" style="display: none;">
+      <h4>Дані бою</h4>
+      <div id="fullData"></div>
+    </div>
+  </div>
 
-<div class="tracker">
-  <h2>WoT Battle Tracker</h2>
-  <p>Срібло (сесія): <span id="credits">0</span></p>
-  <p>Бої: <span id="battles">0</span></p>
-  <p>Перемоги: <span id="wins">0</span></p>
-</div>
+  <script type="module">
+    import { WidgetSDK } from 'https://unpkg.com/wotstat-widgets-sdk?module';
+    const sdk = new WidgetSDK();
 
-<script type="module">
-import { WidgetSDK } from 'https://unpkg.com/wotstat-widgets-sdk?module';
-const sdk = new WidgetSDK();
+    let totalCredits = 0;
+    let battleCount = 0;
+    let winCount = 0;
 
-let totalCredits = 0;
-let battleCount = 0;
-let winCount = 0;
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec";
 
-// для реального срібла
-let creditsBeforeBattle = null;
+    function updateUI() {
+      document.getElementById('credits').textContent = totalCredits.toLocaleString();
+      document.getElementById('battles').textContent = battleCount;
+      document.getElementById('wins').textContent = winCount;
+    }
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt5kK9Vs7hVNevK4JY4YiubPdErlFpTi8JQ50i7AkeaKMKelBcJMQz40uol7rxiCtbpA/exec";
+    function sendToSheet(payload) {
+      const query = new URLSearchParams(payload).toString();
+      const url = `${SCRIPT_URL}?${query}`;
 
-function updateUI() {
-  document.getElementById('credits').textContent = totalCredits.toLocaleString();
-  document.getElementById('battles').textContent = battleCount;
-  document.getElementById('wins').textContent = winCount;
-}
+      fetch(url)
+        .then(res => res.text())
+        .then(txt => console.log('Sheet response:', txt))
+        .catch(err => console.error('Sheet error:', err));
+    }
 
-function sendToSheet(payload) {
-  const query = new URLSearchParams(payload).toString();
-  fetch(`${SCRIPT_URL}?${query}`)
-    .then(r => r.text())
-    .then(t => console.log('Sheet:', t))
-    .catch(e => console.error('Sheet error:', e));
-}
+    function formatDataForDisplay(data) {
+      let html = '';
+      
+      // Основные данные из result.common
+      if (data.common) {
+        html += `<div class="details-item"><span class="details-label">Битва ID:</span> <span class="details-value">${data.common.battleID || 'N/A'}</span></div>`;
+        html += `<div class="details-item"><span class="details-label">Режим:</span> <span class="details-value">${data.common.gameMode || 'N/A'}</span></div>`;
+        html += `<div class="details-item"><span class="details-label">Карта:</span> <span class="details-value">${data.common.mapName || 'N/A'}</span></div>`;
+        html += `<div class="details-item"><span class="details-label">Дати:</span> <span class="details-value">${data.common.dateTime || 'N/A'}</span></div>`;
+        html += `<div class="details-item"><span class="details-label">Переможець:</span> <span class="details-value">${data.common.winnerTeam || 'N/A'}</span></div>`;
+        html += `<div class="details-item"><span class="details-label">Тривалість:</span> <span class="details-value">${data.common.duration || 'N/A'} сек</span></div>`;
+      }
 
-// фіксуємо срібло ПЕРЕД боєм
-sdk.data.battle.isInBattle.watch(inBattle => {
-  if (inBattle) {
-    battleCount++;
-    creditsBeforeBattle = sdk.data.player.credits.value;
-    updateUI();
-  }
-});
+      // Персональные данные
+      if (data.personal) {
+        const pid = Object.keys(data.personal)[0];
+        const personal = data.personal[pid];
+        
+        html += `<hr style="margin: 0.5rem 0; border-color: #555;">`;
+        html += `<div style="color: #4fc3f7; margin: 0.5rem 0;"><strong>Персональні дані:</strong></div>`;
+        
+        for (const [key, value] of Object.entries(personal)) {
+          if (typeof value === 'object') continue; // Пропускаем объекты
+          html += `<div class="details-item"><span class="details-label">${key}:</span> <span class="details-value">${value !== null && value !== undefined ? value : 'N/A'}</span></div>`;
+        }
+      }
 
-sdk.data.battle.onBattleResult.watch(result => {
-  if (!result || !result.personal) return;
+      // Данные игроков
+      if (data.players) {
+        html += `<hr style="margin: 0.5rem 0; border-color: #555;">`;
+        html += `<div style="color: #4fc3f7; margin: 0.5rem 0;"><strong>Гравці:</strong></div>`;
+        html += `<div class="details-value" style="max-height: 100px; overflow-y: auto;">`;
+        html += JSON.stringify(data.players, null, 2);
+        html += `</div>`;
+      }
 
-  const pid = Object.keys(result.personal)[0];
-  const p = result.personal[pid];
+      // Дополнительные данные из SDK
+      html += `<hr style="margin: 0.5rem 0; border-color: #555;">`;
+      html += `<div style="color: #4fc3f7; margin: 0.5rem 0;"><strong>Дані SDK:</strong></div>`;
+      html += `<div class="details-item"><span class="details-label">Гравець ID:</span> <span class="details-value">${sdk.data.player.id.value || 'N/A'}</span></div>`;
+      html += `<div class="details-item"><span class="details-label">Танк:</span> <span class="details-value">${sdk.data.tank.name.value || 'N/A'}</span></div>`;
+      html += `<div class="details-item"><span class="details-label">Карта:</span> <span class="details-value">${sdk.data.map.name.value || 'N/A'}</span></div>`;
 
-  // РЕАЛЬНЕ срібло через дельту
-  const creditsAfter = sdk.data.player.credits.value;
-  const deltaCredits = (creditsBeforeBattle !== null)
-    ? creditsAfter - creditsBeforeBattle
-    : 0;
+      return html;
+    }
 
-  totalCredits += deltaCredits;
+    function displayFullData(result) {
+      document.getElementById('fullData').innerHTML = formatDataForDisplay(result);
+      document.getElementById('battleDetails').style.display = 'block';
+    }
 
-  const myId = sdk.data.player.id.value;
-  const myTeam = result.players?.[myId]?.team;
-  const winner = result.common?.winnerTeam;
-  const isWin = myTeam && winner && Number(myTeam) === Number(winner);
-  if (isWin) winCount++;
+    window.toggleDetails = function() {
+      const details = document.getElementById('battleDetails');
+      const button = document.querySelector('.toggle-details');
+      
+      if (details.style.display === 'none') {
+        details.style.display = 'block';
+        button.textContent = 'Сховати деталі бою';
+      } else {
+        details.style.display = 'none';
+        button.textContent = 'Показати деталі бою';
+      }
+    }
 
-  updateUI();
+    let lastPayloadHash = null;
+    let lastSendTime = 0;
 
-  const now = new Date();
+    sdk.data.battle.isInBattle.watch(inBattle => {
+      if (inBattle) {
+        battleCount++;
+        updateUI();
+      }
+    });
 
-  const payload = {
-    // TIME
-    time_iso: now.toISOString(),
-    time_local: now.toLocaleString('uk-UA'),
+    sdk.data.battle.onBattleResult.watch(result => {
+      if (!result || !result.personal) return;
 
-    // META
-    game_mode: result.common?.gameMode || '',
-    arena_id: result.common?.arenaUniqueID || '',
-    is_finished: result.common?.isFinished ?? '',
-    duration: result.common?.duration ?? '',
-    phase: result.common?.phase ?? '',
+      const pid = Object.keys(result.personal)[0];
+      const personal = result.personal[pid];
+      const earned = personal.credits || 0;
+      const repair = personal.autoRepairCost || 0;
+      const equip  = personal.autoEquipCost?.[0] || 0;
+      const load   = personal.autoLoadCost?.[0] || 0;
+      const netCredits = earned - (repair + equip + load);
+      totalCredits += netCredits;
 
-    // MAP / TANK
-    map: sdk.data.map.name.value || '',
-    tank: sdk.data.tank.name.value || '',
-    tank_level: sdk.data.tank.level.value || '',
-    tank_class: sdk.data.tank.type.value || '',
+      const myTeam = sdk.data.player.id.value;
+      const teamId = result.players[myTeam]?.team;
+      const winner = result.common?.winnerTeam;
+      const isWin = teamId && winner && parseInt(teamId) === parseInt(winner);
+      if (isWin) winCount++;
 
-    // RESULT
-    my_team: myTeam || '',
-    winner_team: winner || '',
-    win: isWin ? 1 : 0,
+      updateUI();
 
-    // SILVER (ВСЕ ЩО МОЖЛИВО)
-    credits_before: creditsBeforeBattle,
-    credits_after: creditsAfter,
-    credits_delta_real: deltaCredits,          // ГОЛОВНЕ
-    credits_raw: p.credits || 0,
-    repair_cost: p.autoRepairCost || 0,
-    equip_cost: (p.autoEquipCost || []).reduce((a,b)=>a+b,0),
-    ammo_cost: (p.autoLoadCost || []).reduce((a,b)=>a+b,0),
+      const now = new Date();
+      const payload = {
+        time:    now.toLocaleString('uk-UA'),
+        battle:  battleCount,
+        tank:    sdk.data.tank.name.value || '',
+        map:     sdk.data.map.name.value || '',
+        win:     isWin ? 'Перемога' : 'Поразка',
+        damage:  personal.damageDealt || 0,
+        assist:  (personal.damageAssisted || 0) + (personal.spottedAssisted || 0),
+        credits: netCredits
+      };
 
-    // XP
-    xp: p.xp || 0,
-    xp_raw: p.xpBeforeBonuses || 0,
-    free_xp: p.freeXP || 0,
-    booster_xp: p.boosterXP || 0,
+      const payloadHash = JSON.stringify(payload);
+      const nowTime = Date.now();
 
-    // ECONOMY EXTRA
-    bonds: p.bonds || 0,
-    gold: p.gold || 0,
-    premium: p.isPremium || false,
-    booster_credits: p.boosterCredits || 0,
+      // Захист від дублювання
+      if (payloadHash === lastPayloadHash && nowTime - lastSendTime < 3000) {
+        console.log("🔁 Цей самий запис уже відправлено.");
+        return;
+      }
 
-    // COMBAT
-    damage_dealt: p.damageDealt || 0,
-    damage_received: p.damageReceived || 0,
-    damage_blocked: p.damageBlockedByArmor || 0,
+      lastPayloadHash = payloadHash;
+      lastSendTime = nowTime;
 
-    assist_track: p.damageAssisted || 0,
-    assist_spot: p.spottedAssisted || 0,
-    assist_stun: p.stunAssisted || 0,
+      console.log('📤 Надсилається:', payload);
+      console.log('📊 Повні дані бою:', result);
+      
+      // Выводим полные данные
+      displayFullData(result);
+      
+      sendToSheet(payload);
+    });
 
-    frags: p.frags || 0,
-    shots: p.shots || 0,
-    hits: p.hits || 0,
-    penetrations: p.piercings || 0,
-
-    cap: p.capturePoints || 0,
-    def: p.defencePoints || 0,
-    mileage: p.mileage || 0,
-
-    // FRONTLINE (якщо є)
-    frontline_rank: p.rank || '',
-    frontline_points: p.frontlinePoints || ''
-  };
-
-  console.log('📤 PAYLOAD:', payload);
-  sendToSheet(payload);
-});
-</script>
-
+    // Дополнительно: выводим все доступные данные SDK при загрузке
+    console.log('SDK data structure:', sdk.data);
+  </script>
 </body>
 </html>
